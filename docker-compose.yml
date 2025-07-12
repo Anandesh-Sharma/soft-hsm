@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hsm_postgres
+    environment:
+      POSTGRES_DB: hsm_edwards_api
+      POSTGRES_USER: hsm_user
+      POSTGRES_PASSWORD: hsm_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hsm_user -d hsm_edwards_api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hsm-network
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: hsm_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hsm-network
+
+  # HSM Edwards API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: hsm_edwards_api
+    environment:
+      # Database Configuration
+      DATABASE_URL: postgresql://hsm_user:hsm_password@postgres:5432/hsm_edwards_api
+      DATABASE_POOL_SIZE: 20
+      
+      # HSM Configuration (SoftHSM for development)
+      HSM_LIBRARY_PATH: /usr/lib/softhsm/libsofthsm2.so
+      HSM_SLOT_ID: 0
+      HSM_PIN: 1234
+      HSM_TOKEN_LABEL: HSM_TOKEN
+      
+      # JWT Configuration
+      JWT_SECRET_KEY: dev-secret-key-change-in-production
+      JWT_ALGORITHM: RS256
+      JWT_EXPIRATION_HOURS: 24
+      
+      # Security Configuration
+      SECRET_KEY: dev-secret-key-change-in-production
+      MAX_REQUEST_SIZE: 1048576
+      
+      # Rate Limiting
+      RATE_LIMIT_REQUESTS: 100
+      RATE_LIMIT_WINDOW: 60
+      REDIS_URL: redis://redis:6379/0
+      
+      # CORS Configuration
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:8080"]'
+      
+      # Logging Configuration
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      
+      # API Configuration
+      DEBUG: false
+      API_V1_PREFIX: /api/v1
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/var/log/hsm_edwards_api
+    networks:
+      - hsm-network
+    restart: unless-stopped
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: hsm_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - hsm-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  hsm-network:
+    driver: bridge

@@ -1,0 +1,38 @@
+# Core Framework
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+python-dotenv==1.0.1
+
+# Database
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# HSM Integration
+PyKCS11==1.5.14
+cryptography==43.0.3
+
+# Authentication & Security - Disabled
+# python-jose[cryptography]==3.3.0
+# passlib[bcrypt]==1.7.4
+python-multipart==0.0.9  # Still needed for file uploads
+
+# Validation
+pydantic==2.6.1
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# Rate Limiting & Caching
+slowapi==0.1.9
+redis==5.0.1
+
+# Logging & Monitoring
+structlog==24.1.0
+python-json-logger==2.0.7
+
+# HTTP Client
+httpx==0.26.0
+
+# Utils
+python-dateutil==2.8.2
+pytz==2024.1
