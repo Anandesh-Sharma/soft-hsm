@@ -18,7 +18,7 @@ def run_development():
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8005,
         reload=True,
         reload_dirs=[project_root],
         log_level="info"
